@@ -63,7 +63,8 @@
             Check: () => <Icon d="M20 6L9 17l-5-5" />,
             Plus: () => <Icon d="M12 5v14M5 12h14" />,
             Mail: () => <Icon d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6" />,
-            X: () => <Icon d="M18 6L6 18M6 6l12 12" />
+            X: () => <Icon d="M18 6L6 18M6 6l12 12" />,
+            Alert: () => <Icon d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
         };
 
         // --- MASTER DATA: CUESTIONARIO SALUD ---
@@ -85,18 +86,18 @@
             id: Date.now(),
             role: isTitular ? 'Titular' : 'Cónyuge',
             isComplete: false,
-            // 1. FILIACIÓN (Datos completos auditados)
+            // 1. FILIACIÓN
             personal: { 
                 nombre: '', 
-                apellido: titularData?.personal?.apellido || '', // HERENCIA: Apellido
+                apellido: titularData?.personal?.apellido || '', 
                 docTipo: 'DNI', dni: '', cuil: '', 
                 nac: '', edad: '', sexo: '', 
                 civil: '', 
                 nacionalidad: 'Argentina', 
-                ocupacion: '', // NUEVO: Dato de filiación
-                plan: titularData?.personal?.plan || 'Plan 300' // HERENCIA: Plan
+                ocupacion: '', 
+                plan: titularData?.personal?.plan || 'Plan 300' 
             },
-            // 2. CONTACTO (Herencia para todos, no solo titular)
+            // 2. CONTACTO
             contact: { 
                 calle: titularData?.contact?.calle || '', 
                 nro: titularData?.contact?.nro || '', 
@@ -131,17 +132,17 @@
             signPlace: 'Córdoba'
         });
 
-        // --- COMPONENTE MODAL (Para evitar confirm nativo) ---
-        const Modal = ({ isOpen, onClose, onConfirm, title, children }) => {
+        // --- COMPONENTE MODAL ---
+        const Modal = ({ isOpen, onClose, onConfirm, title, children, confirmText = "Confirmar", confirmColor="bg-red-500 hover:bg-red-600" }) => {
             if (!isOpen) return null;
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 fade-in">
-                        <h3 className="text-lg font-bold mb-2 text-sume-dark">{title}</h3>
-                        <p className="text-sm text-gray-600 mb-6">{children}</p>
+                        <h3 className="text-lg font-bold mb-3 text-sume-dark border-b pb-2">{title}</h3>
+                        <div className="text-sm text-gray-600 mb-6">{children}</div>
                         <div className="flex gap-3 justify-end">
                             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100">Cancelar</button>
-                            <button onClick={onConfirm} className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600">Eliminar</button>
+                            <button onClick={onConfirm} className={`px-4 py-2 rounded-lg text-sm font-bold text-white ${confirmColor}`}>{confirmText}</button>
                         </div>
                     </div>
                 </div>
@@ -149,10 +150,10 @@
         };
 
         function App() {
-            // Version 15 para limpiar datos anteriores
             const [state, setState] = useState(() => JSON.parse(localStorage.getItem('sumev15')) || { view: 'ONBOARDING', members: [], activeId: null, step: 1 });
             const [pdfLoading, setPdfLoading] = useState(false);
             const [deleteModal, setDeleteModal] = useState({ show: false, id: null });
+            const [emailModal, setEmailModal] = useState(false);
 
             useEffect(() => localStorage.setItem('sumev15', JSON.stringify(state)), [state]);
 
@@ -160,40 +161,48 @@
             
             const addMember = () => {
                 const tit = state.members.find(m => m.role === 'Titular');
-                // Se pasa el titular para heredar datos
                 const nm = createMember(false, tit); 
                 setState(p => ({ ...p, members: [...p.members, nm], view: 'FLOW', activeId: nm.id, step: 1 }));
             };
 
             const confirmDelete = () => {
                 if (deleteModal.id) {
-                    setState(p => ({
-                        ...p,
-                        members: p.members.filter(m => m.id !== deleteModal.id)
-                    }));
+                    setState(p => ({ ...p, members: p.members.filter(m => m.id !== deleteModal.id) }));
                 }
                 setDeleteModal({ show: false, id: null });
+            };
+
+            // EMAIL LOGIC
+            const generateMailto = () => {
+                const tit = state.members.find(m => m.role === 'Titular') || state.members[0];
+                const subject = encodeURIComponent(`DDJJ Sume Salud - ${tit.personal.apellido} ${tit.personal.nombre} - DNI ${tit.personal.dni}`);
+                let body = `Estimados Sume Salud,\n\nAdjunto hago entrega de la Declaración Jurada de Salud completa de mi grupo familiar.\n\nRESUMEN DE INTEGRANTES:\n`;
+                
+                state.members.forEach(m => {
+                    body += `\n--------------------------------\n`;
+                    body += `ROL: ${m.role.toUpperCase()}\n`;
+                    body += `NOMBRE: ${m.personal.apellido}, ${m.personal.nombre}\n`;
+                    body += `DNI: ${m.personal.dni} | PLAN: ${m.personal.plan}\n`;
+                });
+                
+                body += `\n--------------------------------\n\nIMPORTANTE: Se adjunta el archivo PDF con el detalle médico completo y las firmas correspondientes.\n\nSaludos cordiales,\n${tit.personal.apellido}, ${tit.personal.nombre}`;
+                
+                return `mailto:esacchetto@sumesalud.com.ar?subject=${subject}&body=${encodeURIComponent(body)}`;
+            };
+
+            const handleSendEmail = () => {
+                window.location.href = generateMailto();
+                setEmailModal(false);
             };
 
             const nextStep = () => {
                 window.scrollTo(0,0);
                 const mem = state.members.find(m => m.id === state.activeId);
                 let next = state.step + 1;
-                
                 const isFemale = ['F', 'Femenino'].includes(mem?.personal?.sexo);
-                // Salto de Gineco (Paso 6) si no es mujer
-                if(next === 6 && !isFemale) {
-                    next = 7;
-                }
-
+                if(next === 6 && !isFemale) next = 7;
                 if (next <= 8) setState(p => ({ ...p, step: next })); 
-                else {
-                    setState(p => ({ 
-                        ...p, 
-                        members: p.members.map(m => m.id === p.activeId ? { ...m, isComplete: true } : m),
-                        view: 'HUB' 
-                    }));
-                }
+                else setState(p => ({ ...p, members: p.members.map(m => m.id === p.activeId ? { ...m, isComplete: true } : m), view: 'HUB' }));
             };
             
             const prevStep = () => {
@@ -202,9 +211,7 @@
                 let prev = state.step - 1;
                 const isFemale = ['F', 'Femenino'].includes(mem?.personal?.sexo);
                 if(prev === 6 && !isFemale) prev = 5;
-                
-                if(prev < 1) setState(p => ({...p, view: 'HUB'}));
-                else setState(p => ({...p, step: prev}));
+                if(prev < 1) setState(p => ({...p, view: 'HUB'})); else setState(p => ({...p, step: prev}));
             };
 
             const genPDF = () => {
@@ -215,22 +222,21 @@
                     const m = 15;
                     const ORANGE = [229, 57, 17];
                     const HEADER_TEXT = "Solicitud de Ingreso. La presente tiene carácter de Declaración Jurada.";
-                    const LEGAL_TEXT = "DECLARO BAJO JURAMENTO que las informaciones consignadas en la presente Declaración Jurada de Salud son exactas, completas y verdaderas..."; // (Texto acortado en código, usar completo en lógica)
                     const FULL_LEGAL = "DECLARO BAJO JURAMENTO que las informaciones consignadas en la presente Declaración Jurada de Salud son exactas, completas y verdaderas, y que no he omitido ni falseado dato alguno sobre mi estado de salud actual, antecedentes patológicos o tratamientos en curso, ni los de mi grupo familiar a cargo. Tomo conocimiento y acepto que la presente declaración constituye la base esencial para la aceptación de mi ingreso y/o permanencia en SUME SALUD. Entiendo que cualquier reticencia, omisión, falsedad o inexactitud en los datos aquí vertidos facultará a la Empresa a declarar la nulidad absoluta del contrato, suspender las prestaciones y/o darme de baja automáticamente, sin derecho a reclamo o indemnización alguna, reservándose la entidad el derecho de iniciar las acciones legales correspondientes (Art. 5 y 9 Ley 26.682 y Art. 974 y conc. Código Civil y Comercial). Asimismo, autorizo expresamente a SUME SALUD y a su Auditoría Médica a verificar los datos expuestos, relevando del secreto profesional a los médicos, clínicas, sanatorios, hospitales y obras sociales que me hubieran asistido con anterioridad, a los fines exclusivos de corroborar la veracidad de esta declaración.";
 
                     state.members.forEach((mem, index) => {
                         if(index > 0) doc.addPage();
-                        
                         doc.setFontSize(22); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("Sume Salud", m, 20); 
                         doc.setFontSize(14); doc.setTextColor(0);
                         doc.text("DECLARACIÓN JURADA DE ANTECEDENTES DE SALUD", m, 30);
+                        doc.setFontSize(8); doc.setTextColor(80); doc.setFont('helvetica', 'normal');
+                        doc.text(HEADER_TEXT, m, 35);
                         doc.setDrawColor(...ORANGE); doc.line(m, 38, 195, 38);
 
                         let y = 45;
                         const p = mem.personal;
                         
-                        // I. FILIACIÓN
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text(`I. DATOS FILIATORIOS - ${mem.role.toUpperCase()}`, m, y); y+=5;
                         doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
@@ -239,7 +245,6 @@
                         doc.text(`Sexo: ${p.sexo} | Civil: ${p.civil} | Ocupación: ${p.ocupacion}`, m, y); y+=5;
                         doc.text(`Nacionalidad: ${p.nacionalidad} | Plan: ${p.plan}`, m, y); y+=7;
 
-                        // CONTACTO
                         const c = mem.contact;
                         if(c) {
                             doc.text(`Domicilio: ${c.calle} ${c.nro} ${c.piso ? `Piso ${c.piso}` : ''} ${c.depto ? `Dpto ${c.depto}` : ''} - ${c.barrio}, ${c.loc}`, m, y); y+=5;
@@ -247,7 +252,6 @@
                             doc.text(`Email: ${c.email}`, m, y); y+=7;
                         }
 
-                        // II. FÍSICO & HÁBITOS
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("II. BIOMETRÍA Y HÁBITOS", m, y); y+=5;
                         doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
@@ -258,7 +262,6 @@
                         doc.text(`Tabaco: ${fum} | Alcohol: ${h.alcohol} | Drogas: ${h.drogas}`, m, y); y+=5;
                         doc.text(`Actividad Física: ${h.deporte} (${h.depFreq})`, m, y); y+=7;
 
-                        // III. MEDICACIÓN
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("III. MEDICACIÓN HABITUAL", m, y); y+=5;
                         doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
@@ -271,7 +274,6 @@
                         }
                         y+=2;
 
-                        // IV. CUESTIONARIO
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("IV. CUESTIONARIO DE SALUD", m, y); y+=5;
                         doc.setFontSize(8); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
@@ -289,7 +291,6 @@
                         if(!any) { doc.text("NIEGA ANTECEDENTES.", m, y); y+=5; }
                         y+=5;
 
-                        // V. GINECOLOGIA
                         if(['F','Femenino'].includes(p.sexo)) {
                             if(y > 240) { doc.addPage(); y=20; }
                             doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
@@ -301,7 +302,6 @@
                             doc.text(`Patologías: ${g.conds.join(', ') || 'Ninguna'}`, m, y); y+=7;
                         }
 
-                        // VI. FAMILIA
                         if(y > 250) { doc.addPage(); y=20; }
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("VI. HEREDITARIOS", m, y); y+=5;
@@ -313,7 +313,6 @@
                             doc.text(`${k.toUpperCase()}${f.fallecido ? ' (FALLECIDO)' : ''}: ${txt}`, m, y); y+=4;
                         });
 
-                        // VII. LEGAL & FIRMA (SIEMPRE PAGINA NUEVA)
                         doc.addPage(); y=20;
                         doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
                         doc.text("VII. DECLARACIÓN JURADA Y CIERRE", m, y); y+=5;
@@ -325,10 +324,10 @@
                         doc.text(`Lugar y Fecha: ${mem.signPlace}, ${mem.signDate}`, m, y); y+=10;
                         if(mem.sign) {
                             doc.addImage(mem.sign, 'PNG', m, y, 40, 20);
-                            doc.setDrawColor(0); // Linea negra firma
+                            doc.setDrawColor(0); 
                             doc.line(m, y+20, m+60, y+20);
-                            doc.text(`Firma: ${p.apellido}, ${p.nombre}`, m, y+25);
-                            doc.text(`DNI: ${p.dni}`, m, y+29);
+                            doc.text(`Firma: ${p.apellido}, ${p.nombre}`, m, y+24);
+                            doc.text(`DNI: ${p.dni}`, m, y+28);
                         }
                     });
                     
@@ -350,6 +349,29 @@
                         ¿Estás seguro de que deseas eliminar a este integrante? Esta acción no se puede deshacer.
                     </Modal>
 
+                    <Modal
+                        isOpen={emailModal}
+                        onClose={()=>setEmailModal(false)}
+                        title="Enviar por Email"
+                        onConfirm={handleSendEmail}
+                        confirmText="Abrir Correo"
+                        confirmColor="bg-sume-orange hover:bg-orange-700"
+                    >
+                        <div className="bg-orange-50 border border-orange-200 rounded p-3 mb-4 flex gap-3 items-start">
+                            <div className="text-sume-orange mt-1"><Icons.Alert/></div>
+                            <div className="text-xs text-orange-800">
+                                <strong>IMPORTANTE:</strong> Por seguridad, el navegador no puede adjuntar archivos automáticamente.
+                            </div>
+                        </div>
+                        <p className="mb-2">Siga estos pasos:</p>
+                        <ol className="list-decimal ml-5 space-y-1">
+                            <li>Si no lo hizo, descargue el PDF primero.</li>
+                            <li>Haga clic en <strong>"Abrir Correo"</strong>.</li>
+                            <li>Se abrirá su email con el asunto y el resumen listos.</li>
+                            <li className="font-bold text-sume-orange">Adjunte manualmente el archivo PDF descargado.</li>
+                        </ol>
+                    </Modal>
+
                     <div className="w-full max-w-md bg-white shadow-xl min-h-screen flex flex-col relative">
                         <header className="p-4 border-b sticky top-0 z-30 bg-white flex justify-between items-center">
                             <img src="https://sumesalud.com.ar/wp-content/uploads/2024/09/recta.png" className="h-8" alt="Sume Salud" />
@@ -357,7 +379,7 @@
                         </header>
                         <div className="flex-1 overflow-y-auto pb-24">
                             {state.view === 'ONBOARDING' && <Onboarding start={start} />}
-                            {state.view === 'HUB' && <Hub members={state.members} add={addMember} edit={id=>setState(p=>({...p,view:'FLOW',activeId:id,step:1}))} del={id=>setDeleteModal({show:true, id})} pdf={genPDF} loading={pdfLoading} />}
+                            {state.view === 'HUB' && <Hub members={state.members} add={addMember} edit={id=>setState(p=>({...p,view:'FLOW',activeId:id,step:1}))} del={id=>setDeleteModal({show:true, id})} pdf={genPDF} openEmail={()=>setEmailModal(true)} loading={pdfLoading} />}
                             {state.view === 'FLOW' && activeMember && <Flow 
                                 mem={activeMember} 
                                 step={state.step} 
@@ -380,7 +402,7 @@
             </div>
         );
 
-        const Hub = ({ members, add, edit, del, pdf, loading }) => (
+        const Hub = ({ members, add, edit, del, pdf, openEmail, loading }) => (
             <div className="p-6 fade-in">
                 <h2 className="text-xl font-bold mb-4">Grupo Familiar</h2>
                 <div className="space-y-3 mb-6">
@@ -396,10 +418,10 @@
                             )}
                         </div>
                     </div>)}
-                    <button onClick={add} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold flex justify-center gap-2 hover:bg-gray-50"><Icons.UserPlus size={20}/> Agregar Integrante</button>
+                    <button onClick={add} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold flex justify-center gap-2 hover:bg-gray-50 transition-colors"><Icons.UserPlus size={20}/> Agregar Integrante</button>
                 </div>
                 <button onClick={pdf} disabled={loading} className="w-full bg-sume-orange text-white py-3 rounded-xl font-bold shadow flex justify-center gap-2 mb-2 hover:bg-orange-700 transition-colors">{loading?'Generando...':<><Icons.Download/> Descargar PDF</>}</button>
-                <a href="mailto:esacchetto@sumesalud.com.ar?subject=DDJJ Sume Salud" className="block text-center w-full border-2 border-sume-dark py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"><Icons.Mail size={18}/> Enviar Email</a>
+                <button onClick={openEmail} className="block w-full border-2 border-sume-dark py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 text-sume-dark"><Icons.Mail size={18}/> Enviar Email</button>
             </div>
         );
 
@@ -442,18 +464,11 @@
                                     <div className="col-span-2"><Input label="Número" type="number" val={mem.personal.dni} set={v=>up('personal','dni',v)} /></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* FIX: Carga automática de DNI al tipear CUIL */}
                                     <Input label="CUIL/CUIT" type="tel" val={mem.personal.cuil} set={v => {
-                                        // Update CUIL first
                                         const newVal = v;
                                         const clean = newVal.replace(/\D/g, '');
                                         let updates = { cuil: newVal };
-                                        
-                                        // If valid length, extract DNI and update BOTH
-                                        if (clean.length === 11) {
-                                            updates.dni = clean.substring(2, 10);
-                                        }
-                                        
+                                        if (clean.length === 11) updates.dni = clean.substring(2, 10);
                                         update({ personal: { ...mem.personal, ...updates } });
                                     }} placeholder="XX-XXXXXXXX-X" />
                                     <div className="bg-gray-50 border rounded p-2 text-center">
@@ -473,7 +488,7 @@
                                 <Select label="Plan Elegido" val={mem.personal.plan} set={v=>up('personal','plan',v)} opts={['Plan 100','Plan 300','Plan 500','Plan Joven']} />
                                 {!['F', 'Femenino'].includes(mem.personal.sexo) && mem.personal.sexo && (
                                     <p className="text-xs text-gray-400 mt-2 bg-gray-100 p-2 rounded">
-                                        ℹ️ El módulo de <strong>Ginecología</strong> se omitirá automáticamente al no ser de sexo Femenino.
+                                        ℹ️ El módulo de <strong>Ginecología</strong> se omitirá automáticamente.
                                     </p>
                                 )}
                             </Section>
@@ -485,6 +500,7 @@
                                     <div className="col-span-2"><Input label="Calle" val={mem.contact.calle} set={v=>up('contact','calle',v)} /></div>
                                     <Input label="Nro" val={mem.contact.nro} set={v=>up('contact','nro',v)} />
                                 </div>
+                                {/* PISO Y DEPTO SEPARADOS */}
                                 <div className="grid grid-cols-3 gap-3">
                                     <Input label="Piso" val={mem.contact.piso} set={v=>up('contact','piso',v)} placeholder="-" />
                                     <Input label="Depto" val={mem.contact.depto} set={v=>up('contact','depto',v)} placeholder="-" />
@@ -623,7 +639,7 @@
                                             <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={mem.family[rel].fallecido} onChange={e=>update({family:{...mem.family, [rel]:{...mem.family[rel], fallecido:e.target.checked}}})} /> Fallecido</label>
                                         </div>
                                         <div className="flex flex-wrap gap-2 mb-2">
-                                            {['Diabetes','HTA','Cardíacas','Cáncer','Psiquiátricas'].map(tag=>(
+                                            {['Diabetes','HTA','Cardíacas','Cáncer','Psiquiátricas','Otras'].map(tag=>(
                                                 <button key={tag} onClick={()=>{const cur=mem.family[rel].tags; const n=cur.includes(tag)?cur.filter(t=>t!==tag):[...cur,tag]; update({family:{...mem.family, [rel]:{...mem.family[rel], tags:n}}})}} className={`px-2 py-1 text-[10px] rounded border ${mem.family[rel].tags.includes(tag)?'bg-sume-orange text-white':'bg-white'}`}>{tag}</button>
                                             ))}
                                         </div>
