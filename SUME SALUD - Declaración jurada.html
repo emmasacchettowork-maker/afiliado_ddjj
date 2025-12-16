@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sume Salud - Declaración Jurada Completa</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #f3f4f6; touch-action: manipulation; }
+        .bg-sume-orange { background-color: #E53911; }
+        .text-sume-orange { color: #E53911; }
+        .border-sume-orange { border-color: #E53911; }
+        .bg-sume-grey { background-color: #727376; }
+        .text-sume-dark { color: #282829; }
+        .bg-sume-aqua { background-color: #159a9d; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+    </style>
+    
+    <script>
+        tailwind.config = { theme: { extend: { colors: { sume: { orange: '#E53911', grey: '#727376', dark: '#282829', aqua: '#159a9d' } } } } }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICONS (SVG Nativos) ---
+        const Icon = ({d, size=20, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d={d}/></svg>;
+        const Icons = {
+            Users: () => <Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75" />,
+            UserPlus: () => <Icon d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M8.5 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M20 8v6 M23 11h-6" />,
+            ChevronRight: () => <Icon d="m9 18 6-6-6-6" />,
+            Download: () => <Icon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" />,
+            Trash: () => <Icon d="M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />,
+            Refresh: () => <Icon d="M23 4v6h-6 M1 20v-6h6" />,
+            Check: () => <Icon d="M20 6L9 17l-5-5" />,
+            Plus: () => <Icon d="M12 5v14M5 12h14" />,
+            Mail: () => <Icon d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6" />,
+            X: () => <Icon d="M18 6L6 18M6 6l12 12" />
+        };
+
+        // --- MASTER DATA: CUESTIONARIO SALUD ---
+        const MEDICAL_DATA = [
+            { id: 'cv', cat: 'A. Cardiovasculares', q: '¿Hipertensión, Coronarias, Arritmias?', opts: ['Hipertensión Arterial', 'Enf. Coronaria / Angina / Infarto', 'Arritmias / Palpitaciones / Soplos', 'Insuficiencia Cardíaca', 'Marcapasos / Stent / By-pass', 'Chagas', 'Varices / Flebitis / Trombosis'] },
+            { id: 'resp', cat: 'B. Respiratorias', q: '¿Asma, EPOC, Apneas?', opts: ['Asma Bronquial', 'Bronquitis Crónica / EPOC', 'Neumonías a repetición', 'Tuberculosis', 'Alergias Resp. Severas / Rinitis', 'Apnea del Sueño'] },
+            { id: 'dig', cat: 'C. Gastrointestinales', q: '¿Gastritis, Hígado, Celiaquía?', opts: ['Gastritis / Úlcera', 'Hernia Hiatal / Reflujo', 'Hepatitis / Cirrosis / Hígado Graso', 'Litiasis Vesicular', 'Colon Irritable / Divertículos', 'Celiaquía / Intolerancias', 'Hemorroides / Fístulas'] },
+            { id: 'ren', cat: 'D. Renales/Uro', q: '¿Cálculos, Infección, Próstata?', opts: ['Infecciones Urinarias Recurrentes', 'Litiasis Renal', 'Insuf. Renal (Aguda/Crónica)', 'Afecciones de Próstata'] },
+            { id: 'end', cat: 'E. Endocrinas', q: '¿Diabetes, Tiroides, Peso?', opts: ['Diabetes (Insulinodependiente)', 'Diabetes (No Insulinodependiente)', 'Hipo/Hipertiroidismo / Nódulos', 'Dislipemias (Colesterol/Triglicéridos)', 'Gota', 'Obesidad / Sobrepeso'] },
+            { id: 'neu', cat: 'F. Neuro/Psico', q: '¿Epilepsia, Ansiedad, Degenerativas?', opts: ['Epilepsia / Convulsiones', 'Cefaleas / Migrañas', 'ACV / Derrames', 'Ansiedad / Pánico / Depresión', 'Trastornos Alimenticios', 'Enf. Degenerativas (Alzheimer/Parkinson)'] },
+            { id: 'ost', cat: 'G. Osteoarticulares', q: '¿Artrosis, Hernias, Prótesis?', opts: ['Artritis / Artrosis / Reumatismo', 'Hernia de Disco / Lumbociatalgias', 'Deformidades Columna', 'Fracturas Previas', 'Prótesis / Osteosíntesis'] },
+            { id: 'inf', cat: 'H. Infec/Inmuno/Onco', q: '¿HIV, Tumores, Cáncer?', opts: ['HIV / SIDA', 'ETS (Sífilis, Gonorrea, HPV)', 'Tumores / Quistes Benignos', 'Cáncer / Oncología', 'Lupus / Psoriasis / Autoimmunes'] },
+            { id: 'qui', cat: 'I. Quirúrgicos', q: '¿Intervenciones quirúrgicas?', opts: ['Apendicitis', 'Vesícula', 'Cesárea', 'Traumatológica', 'Cardíaca', 'Ginecológica', 'Otras'] },
+            { id: 'sen', cat: 'J. Sentidos/Discapacidad', q: '¿Vista, Oído, CUD?', opts: ['Disminución Visión (Miopía/Astig/Cataratas)', 'Disminución Audición (Hipoacusia)', 'Certificado Discapacidad (CUD)'] }
+        ];
+
+        // --- MODELO ---
+        const createMember = (isTitular, titularData) => ({
+            id: Date.now(),
+            role: isTitular ? 'Titular' : 'Cónyuge',
+            isComplete: false,
+            // 1. FILIACIÓN (Datos completos auditados)
+            personal: { 
+                nombre: '', 
+                apellido: titularData?.personal?.apellido || '', // HERENCIA: Apellido
+                docTipo: 'DNI', dni: '', cuil: '', 
+                nac: '', edad: '', sexo: '', 
+                civil: '', 
+                nacionalidad: 'Argentina', 
+                ocupacion: '', // NUEVO: Dato de filiación
+                plan: titularData?.personal?.plan || 'Plan 300' // HERENCIA: Plan
+            },
+            // 2. CONTACTO (Herencia para todos, no solo titular)
+            contact: { 
+                calle: titularData?.contact?.calle || '', 
+                nro: titularData?.contact?.nro || '', 
+                piso: titularData?.contact?.piso || '', 
+                depto: titularData?.contact?.depto || '', 
+                barrio: titularData?.contact?.barrio || '', 
+                loc: titularData?.contact?.loc || '', 
+                prov: titularData?.contact?.prov || 'Córdoba', 
+                cp: titularData?.contact?.cp || '', 
+                fijo: titularData?.contact?.fijo || '', 
+                cel: titularData?.contact?.cel || '', 
+                email: titularData?.contact?.email || '' 
+            },
+            // 3. FÍSICO
+            physique: { peso: '', altura: '', imc: null, mano: 'Diestro' },
+            // 4. HÁBITOS
+            habits: { 
+                fuma: 'NO', fumaCant: '', fumaAnios: '', exFumaHace: '', 
+                alcohol: 'Nunca', drogas: 'NO', deporte: 'NO', depFreq: '' 
+            },
+            // 5. MEDICACIÓN
+            meds: { toma: 'NO', lista: [] }, 
+            // 6. FAMILIA
+            family: { padre: {tags:[], txt:'', fallecido:false}, madre: {tags:[], txt:'', fallecido:false}, hermanos: {tags:[], txt:'', fallecido:false} },
+            // 7. GINECO
+            gineco: { fum: '', ciclos: 'Regulares', control: 'NO', papRes: 'Normal', papAnio: '', mamoRes: 'Normal', mamoAnio: '', emb: 'NO', sem: '', partos: '', cesareas: '', abortos: '', anti: 'Ninguno', conds: [] },
+            // 8. HISTORIA CLÍNICA
+            history: {}, 
+            // 9. FIRMA
+            sign: null,
+            signDate: new Date().toISOString().split('T')[0],
+            signPlace: 'Córdoba'
+        });
+
+        // --- COMPONENTE MODAL (Para evitar confirm nativo) ---
+        const Modal = ({ isOpen, onClose, onConfirm, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 fade-in">
+                        <h3 className="text-lg font-bold mb-2 text-sume-dark">{title}</h3>
+                        <p className="text-sm text-gray-600 mb-6">{children}</p>
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100">Cancelar</button>
+                            <button onClick={onConfirm} className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600">Eliminar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        function App() {
+            // Version 15 para limpiar datos anteriores
+            const [state, setState] = useState(() => JSON.parse(localStorage.getItem('sumev15')) || { view: 'ONBOARDING', members: [], activeId: null, step: 1 });
+            const [pdfLoading, setPdfLoading] = useState(false);
+            const [deleteModal, setDeleteModal] = useState({ show: false, id: null });
+
+            useEffect(() => localStorage.setItem('sumev15', JSON.stringify(state)), [state]);
+
+            const start = () => setState({ view: 'FLOW', members: [createMember(true)], activeId: Date.now(), step: 1 });
+            
+            const addMember = () => {
+                const tit = state.members.find(m => m.role === 'Titular');
+                // Se pasa el titular para heredar datos
+                const nm = createMember(false, tit); 
+                setState(p => ({ ...p, members: [...p.members, nm], view: 'FLOW', activeId: nm.id, step: 1 }));
+            };
+
+            const confirmDelete = () => {
+                if (deleteModal.id) {
+                    setState(p => ({
+                        ...p,
+                        members: p.members.filter(m => m.id !== deleteModal.id)
+                    }));
+                }
+                setDeleteModal({ show: false, id: null });
+            };
+
+            const nextStep = () => {
+                window.scrollTo(0,0);
+                const mem = state.members.find(m => m.id === state.activeId);
+                let next = state.step + 1;
+                
+                const isFemale = ['F', 'Femenino'].includes(mem?.personal?.sexo);
+                // Salto de Gineco (Paso 6) si no es mujer
+                if(next === 6 && !isFemale) {
+                    next = 7;
+                }
+
+                if (next <= 8) setState(p => ({ ...p, step: next })); 
+                else {
+                    setState(p => ({ 
+                        ...p, 
+                        members: p.members.map(m => m.id === p.activeId ? { ...m, isComplete: true } : m),
+                        view: 'HUB' 
+                    }));
+                }
+            };
+            
+            const prevStep = () => {
+                window.scrollTo(0,0);
+                const mem = state.members.find(m => m.id === state.activeId);
+                let prev = state.step - 1;
+                const isFemale = ['F', 'Femenino'].includes(mem?.personal?.sexo);
+                if(prev === 6 && !isFemale) prev = 5;
+                
+                if(prev < 1) setState(p => ({...p, view: 'HUB'}));
+                else setState(p => ({...p, step: prev}));
+            };
+
+            const genPDF = () => {
+                setPdfLoading(true);
+                setTimeout(() => {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    const m = 15;
+                    const ORANGE = [229, 57, 17];
+                    const HEADER_TEXT = "Solicitud de Ingreso. La presente tiene carácter de Declaración Jurada.";
+                    const LEGAL_TEXT = "DECLARO BAJO JURAMENTO que las informaciones consignadas en la presente Declaración Jurada de Salud son exactas, completas y verdaderas..."; // (Texto acortado en código, usar completo en lógica)
+                    const FULL_LEGAL = "DECLARO BAJO JURAMENTO que las informaciones consignadas en la presente Declaración Jurada de Salud son exactas, completas y verdaderas, y que no he omitido ni falseado dato alguno sobre mi estado de salud actual, antecedentes patológicos o tratamientos en curso, ni los de mi grupo familiar a cargo. Tomo conocimiento y acepto que la presente declaración constituye la base esencial para la aceptación de mi ingreso y/o permanencia en SUME SALUD. Entiendo que cualquier reticencia, omisión, falsedad o inexactitud en los datos aquí vertidos facultará a la Empresa a declarar la nulidad absoluta del contrato, suspender las prestaciones y/o darme de baja automáticamente, sin derecho a reclamo o indemnización alguna, reservándose la entidad el derecho de iniciar las acciones legales correspondientes (Art. 5 y 9 Ley 26.682 y Art. 974 y conc. Código Civil y Comercial). Asimismo, autorizo expresamente a SUME SALUD y a su Auditoría Médica a verificar los datos expuestos, relevando del secreto profesional a los médicos, clínicas, sanatorios, hospitales y obras sociales que me hubieran asistido con anterioridad, a los fines exclusivos de corroborar la veracidad de esta declaración.";
+
+                    state.members.forEach((mem, index) => {
+                        if(index > 0) doc.addPage();
+                        
+                        doc.setFontSize(22); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("Sume Salud", m, 20); 
+                        doc.setFontSize(14); doc.setTextColor(0);
+                        doc.text("DECLARACIÓN JURADA DE ANTECEDENTES DE SALUD", m, 30);
+                        doc.setDrawColor(...ORANGE); doc.line(m, 38, 195, 38);
+
+                        let y = 45;
+                        const p = mem.personal;
+                        
+                        // I. FILIACIÓN
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text(`I. DATOS FILIATORIOS - ${mem.role.toUpperCase()}`, m, y); y+=5;
+                        doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        doc.text(`Nombre: ${p.apellido}, ${p.nombre}`, m, y); y+=5;
+                        doc.text(`${p.docTipo}: ${p.dni} | CUIL: ${p.cuil} | Nac: ${p.nac} (${p.edad} años)`, m, y); y+=5;
+                        doc.text(`Sexo: ${p.sexo} | Civil: ${p.civil} | Ocupación: ${p.ocupacion}`, m, y); y+=5;
+                        doc.text(`Nacionalidad: ${p.nacionalidad} | Plan: ${p.plan}`, m, y); y+=7;
+
+                        // CONTACTO
+                        const c = mem.contact;
+                        if(c) {
+                            doc.text(`Domicilio: ${c.calle} ${c.nro} ${c.piso ? `Piso ${c.piso}` : ''} ${c.depto ? `Dpto ${c.depto}` : ''} - ${c.barrio}, ${c.loc}`, m, y); y+=5;
+                            doc.text(`CP: ${c.cp} | Prov: ${c.prov} | Tel: ${c.fijo} | Cel: ${c.cel}`, m, y); y+=5;
+                            doc.text(`Email: ${c.email}`, m, y); y+=7;
+                        }
+
+                        // II. FÍSICO & HÁBITOS
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("II. BIOMETRÍA Y HÁBITOS", m, y); y+=5;
+                        doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        const ph = mem.physique;
+                        const h = mem.habits;
+                        doc.text(`Peso: ${ph.peso}kg | Talla: ${ph.altura}cm | IMC: ${ph.imc} | Mano: ${ph.mano}`, m, y); y+=5;
+                        let fum = h.fuma === 'SÍ' ? `SÍ (${h.fumaCant}/día, ${h.fumaAnios} años)` : h.fuma;
+                        doc.text(`Tabaco: ${fum} | Alcohol: ${h.alcohol} | Drogas: ${h.drogas}`, m, y); y+=5;
+                        doc.text(`Actividad Física: ${h.deporte} (${h.depFreq})`, m, y); y+=7;
+
+                        // III. MEDICACIÓN
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("III. MEDICACIÓN HABITUAL", m, y); y+=5;
+                        doc.setFontSize(9); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        if(mem.meds.toma === 'SÍ' && mem.meds.lista.length > 0) {
+                            mem.meds.lista.forEach(md => {
+                                doc.text(`• ${md.droga} (${md.dosis}) - Dx: ${md.diag}`, m+5, y); y+=5;
+                            });
+                        } else {
+                            doc.text("NO declara consumo habitual.", m, y); y+=5;
+                        }
+                        y+=2;
+
+                        // IV. CUESTIONARIO
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("IV. CUESTIONARIO DE SALUD", m, y); y+=5;
+                        doc.setFontSize(8); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        let any = false;
+                        MEDICAL_DATA.forEach(q => {
+                            const ans = mem.history[q.id];
+                            if(ans?.si) {
+                                any = true;
+                                if(y > 270) { doc.addPage(); y=20; }
+                                doc.setFont('helvetica', 'bold'); doc.text(`• ${q.cat}: SÍ`, m, y);
+                                doc.setFont('helvetica', 'normal');
+                                doc.text(`   ${(ans.tags||[]).join(', ')} | Obs: ${ans.txt}`, m+45, y); y+=5;
+                            }
+                        });
+                        if(!any) { doc.text("NIEGA ANTECEDENTES.", m, y); y+=5; }
+                        y+=5;
+
+                        // V. GINECOLOGIA
+                        if(['F','Femenino'].includes(p.sexo)) {
+                            if(y > 240) { doc.addPage(); y=20; }
+                            doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                            doc.text("V. GINECOLOGÍA", m, y); y+=5;
+                            doc.setFontSize(8); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                            const g = mem.gineco;
+                            doc.text(`FUM: ${g.fum} | Ciclos: ${g.ciclos} | PAP: ${g.papRes} | Mamo: ${g.mamoRes}`, m, y); y+=4;
+                            doc.text(`Emb: ${g.emb} | Partos: ${g.partos} | Cesáreas: ${g.cesareas} | Anti: ${g.anti}`, m, y); y+=4;
+                            doc.text(`Patologías: ${g.conds.join(', ') || 'Ninguna'}`, m, y); y+=7;
+                        }
+
+                        // VI. FAMILIA
+                        if(y > 250) { doc.addPage(); y=20; }
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("VI. HEREDITARIOS", m, y); y+=5;
+                        doc.setFontSize(8); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        ['padre','madre','hermanos'].forEach(k => {
+                            const f = mem.family[k];
+                            const t = f.tags.join(', ');
+                            const txt = (t || f.txt) ? `${t} ${f.txt ? '('+f.txt+')' : ''}` : 'S/D';
+                            doc.text(`${k.toUpperCase()}${f.fallecido ? ' (FALLECIDO)' : ''}: ${txt}`, m, y); y+=4;
+                        });
+
+                        // VII. LEGAL & FIRMA (SIEMPRE PAGINA NUEVA)
+                        doc.addPage(); y=20;
+                        doc.setFontSize(10); doc.setTextColor(...ORANGE); doc.setFont('helvetica', 'bold');
+                        doc.text("VII. DECLARACIÓN JURADA Y CIERRE", m, y); y+=5;
+                        doc.setFontSize(8); doc.setTextColor(0); doc.setFont('helvetica', 'normal');
+                        const splitLegal = doc.splitTextToSize(FULL_LEGAL, 180);
+                        doc.text(splitLegal, m, y);
+                        y += (splitLegal.length * 3.5) + 20;
+
+                        doc.text(`Lugar y Fecha: ${mem.signPlace}, ${mem.signDate}`, m, y); y+=10;
+                        if(mem.sign) {
+                            doc.addImage(mem.sign, 'PNG', m, y, 40, 20);
+                            doc.setDrawColor(0); // Linea negra firma
+                            doc.line(m, y+20, m+60, y+20);
+                            doc.text(`Firma: ${p.apellido}, ${p.nombre}`, m, y+25);
+                            doc.text(`DNI: ${p.dni}`, m, y+29);
+                        }
+                    });
+                    
+                    doc.save("DDJJ_SumeSalud_Final.pdf");
+                    setPdfLoading(false);
+                }, 100);
+            };
+
+            const activeMember = state.members.find(m => m.id === state.activeId);
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex justify-center text-sume-dark">
+                    <Modal 
+                        isOpen={deleteModal.show} 
+                        title="Eliminar Integrante" 
+                        onClose={()=>setDeleteModal({show:false, id:null})}
+                        onConfirm={confirmDelete}
+                    >
+                        ¿Estás seguro de que deseas eliminar a este integrante? Esta acción no se puede deshacer.
+                    </Modal>
+
+                    <div className="w-full max-w-md bg-white shadow-xl min-h-screen flex flex-col relative">
+                        <header className="p-4 border-b sticky top-0 z-30 bg-white flex justify-between items-center">
+                            <img src="https://sumesalud.com.ar/wp-content/uploads/2024/09/recta.png" className="h-8" alt="Sume Salud" />
+                            <button onClick={()=>confirm('¿Resetear todo?') && (localStorage.removeItem('sumev15') || location.reload())} className="text-gray-300"><Icons.Refresh/></button>
+                        </header>
+                        <div className="flex-1 overflow-y-auto pb-24">
+                            {state.view === 'ONBOARDING' && <Onboarding start={start} />}
+                            {state.view === 'HUB' && <Hub members={state.members} add={addMember} edit={id=>setState(p=>({...p,view:'FLOW',activeId:id,step:1}))} del={id=>setDeleteModal({show:true, id})} pdf={genPDF} loading={pdfLoading} />}
+                            {state.view === 'FLOW' && activeMember && <Flow 
+                                mem={activeMember} 
+                                step={state.step} 
+                                update={patch=>setState(p=>({...p,members:p.members.map(m=>m.id===p.activeId?{...m,...patch}:m)}))} 
+                                next={nextStep} 
+                                prev={prevStep} 
+                            />}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const Onboarding = ({start}) => (
+            <div className="p-8 text-center mt-10 fade-in">
+                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center text-sume-orange mx-auto mb-4"><Icons.Users size={40}/></div>
+                <h1 className="text-2xl font-bold mb-2">Declaración Jurada</h1>
+                <p className="text-sm text-gray-500 mb-8">Solicitud de Ingreso y DDJJ de Salud.</p>
+                <button onClick={start} className="w-full bg-sume-orange text-white py-3 rounded-xl font-bold shadow">Comenzar</button>
+            </div>
+        );
+
+        const Hub = ({ members, add, edit, del, pdf, loading }) => (
+            <div className="p-6 fade-in">
+                <h2 className="text-xl font-bold mb-4">Grupo Familiar</h2>
+                <div className="space-y-3 mb-6">
+                    {members.map(m=><div key={m.id} className="border p-3 rounded-xl flex justify-between items-center bg-white shadow-sm">
+                        <div className="flex-1">
+                            <p className="font-bold text-sm">{m.personal.apellido} {m.personal.nombre}</p>
+                            <p className="text-xs text-gray-500">{m.role} {m.isComplete?'✅':'⚠️'}</p>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                            <button onClick={()=>edit(m.id)} className="text-xs bg-gray-100 px-3 py-2 rounded font-bold text-sume-dark">Editar</button>
+                            {m.role!=='Titular' && (
+                                <button onClick={()=>del(m.id)} className="text-red-500 p-2 hover:bg-red-50 rounded transition-colors"><Icons.Trash size={18}/></button>
+                            )}
+                        </div>
+                    </div>)}
+                    <button onClick={add} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold flex justify-center gap-2 hover:bg-gray-50"><Icons.UserPlus size={20}/> Agregar Integrante</button>
+                </div>
+                <button onClick={pdf} disabled={loading} className="w-full bg-sume-orange text-white py-3 rounded-xl font-bold shadow flex justify-center gap-2 mb-2 hover:bg-orange-700 transition-colors">{loading?'Generando...':<><Icons.Download/> Descargar PDF</>}</button>
+                <a href="mailto:esacchetto@sumesalud.com.ar?subject=DDJJ Sume Salud" className="block text-center w-full border-2 border-sume-dark py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"><Icons.Mail size={18}/> Enviar Email</a>
+            </div>
+        );
+
+        const Flow = ({ mem, step, update, next, prev }) => {
+            const up = (sec, f, v) => update({ [sec]: { ...mem[sec], [f]: v } });
+            
+            useEffect(() => {
+                if(!mem) return;
+                if(mem.personal.nac) {
+                    const age = Math.floor((Date.now() - new Date(mem.personal.nac).getTime()) / (31557600000));
+                    if(age !== mem.personal.edad) up('personal','edad', age);
+                }
+                if(mem.physique.peso && mem.physique.altura) {
+                    const imc = (mem.physique.peso / ((mem.physique.altura/100)**2)).toFixed(1);
+                    if(imc !== mem.physique.imc) update({ physique: { ...mem.physique, imc } });
+                }
+            }, [mem?.personal?.nac, mem?.physique?.peso, mem?.physique?.altura]);
+
+            if (!mem) return null;
+            const LABELS = ['Filiación', 'Contacto & Físico', 'Hábitos', 'Medicación', 'Historia Clínica', 'Ginecología', 'Familia', 'Cierre'];
+
+            return (
+                <div className="fade-in">
+                    <div className="px-6 pt-2 sticky top-14 bg-gray-50 z-20 shadow-sm pb-2">
+                        <div className="flex justify-between text-xs font-bold text-gray-400 mb-1"><span>{mem.role}</span><span>{step}/8</span></div>
+                        <div className="h-1 flex gap-1 mb-4">{[1,2,3,4,5,6,7,8].map(i => <div key={i} className={`flex-1 rounded ${step>=i?'bg-sume-orange':'bg-gray-200'}`}/>)}</div>
+                        <h2 className="text-lg font-bold">{LABELS[step-1]}</h2>
+                    </div>
+
+                    <div className="px-6 py-4 space-y-6">
+                        {step===1 && <div className="space-y-4">
+                            <Section title="I. Datos Filiatorios">
+                                <Select label="Rol" val={mem.role} set={v=>update({role:v})} opts={['Titular','Cónyuge','Concubino/a','Hijo/a','Otro Familiar']} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="Nombre" val={mem.personal.nombre} set={v=>up('personal','nombre',v)} />
+                                    <Input label="Apellido" val={mem.personal.apellido} set={v=>up('personal','apellido',v)} />
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <Select label="Tipo" val={mem.personal.docTipo} set={v=>up('personal','docTipo',v)} opts={['DNI','LE','LC']} />
+                                    <div className="col-span-2"><Input label="Número" type="number" val={mem.personal.dni} set={v=>up('personal','dni',v)} /></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {/* FIX: Carga automática de DNI al tipear CUIL */}
+                                    <Input label="CUIL/CUIT" type="tel" val={mem.personal.cuil} set={v => {
+                                        // Update CUIL first
+                                        const newVal = v;
+                                        const clean = newVal.replace(/\D/g, '');
+                                        let updates = { cuil: newVal };
+                                        
+                                        // If valid length, extract DNI and update BOTH
+                                        if (clean.length === 11) {
+                                            updates.dni = clean.substring(2, 10);
+                                        }
+                                        
+                                        update({ personal: { ...mem.personal, ...updates } });
+                                    }} placeholder="XX-XXXXXXXX-X" />
+                                    <div className="bg-gray-50 border rounded p-2 text-center">
+                                        <label className="text-[10px] font-bold text-gray-400 block uppercase">Edad</label>
+                                        <span className="font-bold">{mem.personal.edad || '-'}</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="Nacimiento" type="date" val={mem.personal.nac} set={v=>up('personal','nac',v)} />
+                                    <Select label="Sexo" val={mem.personal.sexo} set={v=>up('personal','sexo',v)} opts={['Masculino','Femenino','X']} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Select label="Estado Civil" val={mem.personal.civil} set={v=>up('personal','civil',v)} opts={['Soltero/a','Casado/a','Viudo/a','Divorciado/a','Unión Conviv.']} />
+                                    <Input label="Nacionalidad" val={mem.personal.nacionalidad} set={v=>up('personal','nacionalidad',v)} />
+                                </div>
+                                <Input label="Ocupación" val={mem.personal.ocupacion} set={v=>up('personal','ocupacion',v)} />
+                                <Select label="Plan Elegido" val={mem.personal.plan} set={v=>up('personal','plan',v)} opts={['Plan 100','Plan 300','Plan 500','Plan Joven']} />
+                                {!['F', 'Femenino'].includes(mem.personal.sexo) && mem.personal.sexo && (
+                                    <p className="text-xs text-gray-400 mt-2 bg-gray-100 p-2 rounded">
+                                        ℹ️ El módulo de <strong>Ginecología</strong> se omitirá automáticamente al no ser de sexo Femenino.
+                                    </p>
+                                )}
+                            </Section>
+                        </div>}
+
+                        {step===2 && <div className="space-y-6">
+                            <Section title="Datos de Contacto">
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="col-span-2"><Input label="Calle" val={mem.contact.calle} set={v=>up('contact','calle',v)} /></div>
+                                    <Input label="Nro" val={mem.contact.nro} set={v=>up('contact','nro',v)} />
+                                </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <Input label="Piso" val={mem.contact.piso} set={v=>up('contact','piso',v)} placeholder="-" />
+                                    <Input label="Depto" val={mem.contact.depto} set={v=>up('contact','depto',v)} placeholder="-" />
+                                    <Input label="Barrio" val={mem.contact.barrio} set={v=>up('contact','barrio',v)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="Localidad" val={mem.contact.loc} set={v=>up('contact','loc',v)} />
+                                    <Input label="CP" val={mem.contact.cp} set={v=>up('contact','cp',v)} />
+                                </div>
+                                <Select label="Provincia" val={mem.contact.prov} set={v=>up('contact','prov',v)} opts={['Córdoba','Santa Fe','Bs As','Mendoza','Otra']} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="Tel Fijo" type="tel" val={mem.contact.fijo} set={v=>up('contact','fijo',v)} />
+                                    <Input label="Celular" type="tel" val={mem.contact.cel} set={v=>up('contact','cel',v)} />
+                                </div>
+                                <Input label="Email" type="email" val={mem.contact.email} set={v=>up('contact','email',v)} />
+                            </Section>
+                            <Section title="II. Ficha Física">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="Peso (kg)" type="number" val={mem.physique.peso} set={v=>up('physique','peso',v)} />
+                                    <Input label="Estatura (cm)" type="number" val={mem.physique.altura} set={v=>up('physique','altura',v)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 mt-2">
+                                    <div className="bg-gray-100 p-2 rounded text-center"><span className="text-[10px] font-bold text-gray-500 block">IMC Calc</span><span className="font-bold text-sume-orange">{mem.physique.imc||'-'}</span></div>
+                                    <Select label="Mano Hábil" val={mem.physique.mano} set={v=>up('physique','mano',v)} opts={['Diestro','Zurdo','Ambidiestro']} />
+                                </div>
+                            </Section>
+                        </div>}
+
+                        {step===3 && <div className="space-y-6">
+                            <Section title="II. Hábitos">
+                                <Select label="¿Fuma?" val={mem.habits.fuma} set={v=>up('habits','fuma',v)} opts={['NO','SÍ','EX-FUMADOR']} />
+                                {mem.habits.fuma==='SÍ' && <div className="grid grid-cols-2 gap-3 mt-2 bg-orange-50 p-2 rounded"><Input label="Cigarrillos/día" val={mem.habits.fumaCant} set={v=>up('habits','fumaCant',v)} /><Input label="Años fumando" val={mem.habits.fumaAnios} set={v=>up('habits','fumaAnios',v)} /></div>}
+                                {mem.habits.fuma==='EX-FUMADOR' && <div className="mt-2 bg-green-50 p-2 rounded"><Input label="¿Hace cuánto lo dejó?" val={mem.habits.exFumaHace} set={v=>up('habits','exFumaHace',v)} /></div>}
+                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                    <Select label="Alcohol" val={mem.habits.alcohol} set={v=>up('habits','alcohol',v)} opts={['Nunca','Ocasionalmente','Frecuentemente','Diariamente']} />
+                                    <Select label="Drogas" val={mem.habits.drogas} set={v=>up('habits','drogas',v)} opts={['NO','SÍ']} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                    <Select label="Actividad Física" val={mem.habits.deporte} set={v=>up('habits','deporte',v)} opts={['NO','SÍ']} />
+                                    {mem.habits.deporte==='SÍ' && <Select label="Frecuencia" val={mem.habits.depFreq} set={v=>up('habits','depFreq',v)} opts={['Veces por semana','Ocasional']} />}
+                                </div>
+                            </Section>
+                        </div>}
+
+                        {step===4 && <div className="space-y-6">
+                            <Section title="III. Medicación Habitual">
+                                <Select label="¿Realiza tratamiento o ingiere medicación?" val={mem.meds.toma} set={v=>update({meds:{...mem.meds, toma:v}})} opts={['NO','SÍ']} />
+                                {mem.meds.toma === 'SÍ' && <div className="mt-3 space-y-3">
+                                    {mem.meds.lista.map((m, i) => (
+                                        <div key={i} className="bg-gray-50 p-3 rounded-xl border relative">
+                                            <button onClick={()=>{const l=[...mem.meds.lista]; l.splice(i,1); update({meds:{...mem.meds, lista:l}})}} className="absolute top-2 right-2 text-red-400"><Icons.Trash size={16}/></button>
+                                            <div className="grid grid-cols-2 gap-2 mb-2 pr-6">
+                                                <Input label="Droga" val={m.droga} set={v=>{const l=[...mem.meds.lista]; l[i].droga=v; update({meds:{...mem.meds, lista:l}})}} placeholder="Ej: Enalapril" />
+                                                <Input label="Dosis" val={m.dosis} set={v=>{const l=[...mem.meds.lista]; l[i].dosis=v; update({meds:{...mem.meds, lista:l}})}} placeholder="10mg" />
+                                            </div>
+                                            <Input label="Diagnóstico / Motivo" val={m.diag} set={v=>{const l=[...mem.meds.lista]; l[i].diag=v; update({meds:{...mem.meds, lista:l}})}} placeholder="Hipertensión" />
+                                        </div>
+                                    ))}
+                                    <button onClick={()=>update({meds:{...mem.meds, lista:[...mem.meds.lista, {droga:'', dosis:'', diag:''}]}})} className="text-xs font-bold text-sume-orange flex items-center gap-1 border border-sume-orange px-3 py-2 rounded-lg hover:bg-orange-50"><Icons.Plus size={14}/> Agregar Medicamento</button>
+                                </div>}
+                            </Section>
+                        </div>}
+
+                        {step===5 && <div className="space-y-4">
+                            <Section title="IV. Cuestionario de Salud (Historia Clínica)">
+                                <p className="text-xs p-3 bg-orange-50 text-sume-orange border border-orange-100 rounded mb-4">Marque <strong>SÍ</strong> si corresponde. Detalle OBLIGATORIO en observaciones.</p>
+                                {MEDICAL_DATA.map(q => {
+                                    const ans = mem.history[q.id] || { si: false, tags: [], txt: '' };
+                                    return (
+                                        <div key={q.id} className={`border rounded-xl p-3 transition-all ${ans.si?'border-sume-orange bg-white shadow-md':'border-gray-200 bg-gray-50'}`}>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div className="flex-1"><span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{q.cat}</span><p className="text-sm font-bold text-sume-dark">{q.q}</p></div>
+                                                <button onClick={()=>update({history:{...mem.history, [q.id]:{...ans, si:!ans.si, tags:[], txt:''}}})} className={`w-12 h-7 rounded-full p-1 transition-colors ${ans.si?'bg-sume-orange':'bg-gray-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${ans.si?'translate-x-5':''}`} /></button>
+                                            </div>
+                                            {ans.si && <div className="mt-2 pt-2 border-t border-gray-100 slide-in-down">
+                                                <div className="flex flex-wrap gap-2 mb-3">
+                                                    {q.opts.map(opt=>(
+                                                        <button key={opt} onClick={()=>{const t=ans.tags; const n=t.includes(opt)?t.filter(x=>x!==opt):[...t,opt]; update({history:{...mem.history, [q.id]:{...ans, tags:n}}})}} className={`px-2 py-1 text-[10px] rounded-full border ${ans.tags.includes(opt)?'bg-sume-orange text-white border-sume-orange font-bold':'bg-white text-gray-600 border-gray-200'}`}>{opt}</button>
+                                                    ))}
+                                                </div>
+                                                <input className="w-full text-sm p-2 border border-orange-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sume-orange" placeholder="Diagnóstico, Fecha, Tratamiento, Secuelas..." value={ans.txt} onChange={e=>update({history:{...mem.history, [q.id]:{...ans, txt:e.target.value}}})} />
+                                            </div>}
+                                        </div>
+                                    );
+                                })}
+                            </Section>
+                        </div>}
+
+                        {step===6 && <div className="space-y-6">
+                            <Section title="V. Ginecología y Obstetricia">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input label="FUM" type="date" val={mem.gineco.fum} set={v=>up('gineco','fum',v)} />
+                                    <Select label="Ciclos" val={mem.gineco.ciclos} set={v=>up('gineco','ciclos',v)} opts={['Regulares','Irregulares']} />
+                                </div>
+                                <Select label="Control Anual" val={mem.gineco.control} set={v=>up('gineco','control',v)} opts={['SÍ','NO']} />
+                                <div className="bg-gray-50 p-2 rounded mt-2">
+                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                        <Select label="PAP" val={mem.gineco.papRes} set={v=>up('gineco','papRes',v)} opts={['Normal','Patológico']} />
+                                        <Input label="Año" type="number" val={mem.gineco.papAnio} set={v=>up('gineco','papAnio',v)} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Select label="Mamografía" val={mem.gineco.mamoRes} set={v=>up('gineco','mamoRes',v)} opts={['Normal','Patológico']} />
+                                        <Input label="Año" type="number" val={mem.gineco.mamoAnio} set={v=>up('gineco','mamoAnio',v)} />
+                                    </div>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-3 items-end">
+                                    <Select label="¿Embarazo Actual?" val={mem.gineco.emb} set={v=>up('gineco','emb',v)} opts={['NO','SÍ']} />
+                                    {mem.gineco.emb==='SÍ' && <Input label="Semanas" val={mem.gineco.sem} set={v=>up('gineco','sem',v)} />}
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                    <Input label="Partos" type="number" val={mem.gineco.partos} set={v=>up('gineco','partos',v)} />
+                                    <Input label="Cesáreas" type="number" val={mem.gineco.cesareas} set={v=>up('gineco','cesareas',v)} />
+                                    <Input label="Abortos" type="number" val={mem.gineco.abortos} set={v=>up('gineco','abortos',v)} />
+                                </div>
+                                <div className="mt-3">
+                                    <Select label="Anticoncepción" val={mem.gineco.anti} set={v=>up('gineco','anti',v)} opts={['Ninguno','Pastillas','DIU','Implante','Inyectable','Ligadura','Preservativo']} />
+                                </div>
+                                <div className="mt-3">
+                                    <label className="text-[10px] font-bold text-gray-400 block">Patologías</label>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {['Miomas','Endometriosis','Nódulos','HPV','SOP'].map(t=>(
+                                            <button key={t} onClick={()=>{const c=mem.gineco.conds; const n=c.includes(t)?c.filter(x=>x!==t):[...c,t]; up('gineco','conds',n)}} className={`px-2 py-1 text-[10px] rounded border ${mem.gineco.conds.includes(t)?'bg-red-400 text-white':'bg-white'}`}>{t}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </Section>
+                        </div>}
+
+                        {step===7 && <div className="space-y-6">
+                            <Section title="VI. Antecedentes Familiares (Hereditarios)">
+                                <p className="text-xs text-gray-400 mb-3">Indique si padecen/fallecieron por: Diabetes, HTA, Cardíacas, Cáncer, Psiquiátricas.</p>
+                                {['padre','madre','hermanos'].map(rel => (
+                                    <div key={rel} className="mb-4 border-b pb-3 last:border-0">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="text-xs font-bold uppercase text-sume-orange">{rel}</h4>
+                                            <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={mem.family[rel].fallecido} onChange={e=>update({family:{...mem.family, [rel]:{...mem.family[rel], fallecido:e.target.checked}}})} /> Fallecido</label>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {['Diabetes','HTA','Cardíacas','Cáncer','Psiquiátricas'].map(tag=>(
+                                                <button key={tag} onClick={()=>{const cur=mem.family[rel].tags; const n=cur.includes(tag)?cur.filter(t=>t!==tag):[...cur,tag]; update({family:{...mem.family, [rel]:{...mem.family[rel], tags:n}}})}} className={`px-2 py-1 text-[10px] rounded border ${mem.family[rel].tags.includes(tag)?'bg-sume-orange text-white':'bg-white'}`}>{tag}</button>
+                                            ))}
+                                        </div>
+                                        <Input label="Detalle Patología / Causa" val={mem.family[rel].txt} set={v=>update({family:{...mem.family, [rel]:{...mem.family[rel], txt:v}}})} />
+                                    </div>
+                                ))}
+                            </Section>
+                        </div>}
+
+                        {step===8 && <div className="h-full">
+                            <div className="p-4 bg-gray-100 rounded text-[10px] leading-tight text-gray-600 mb-4 text-justify border border-gray-200">
+                                "DECLARO BAJO JURAMENTO que las informaciones consignadas en la presente Declaración Jurada de Salud son exactas, completas y verdaderas, y que no he omitido ni falseado dato alguno..."
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                <Input label="Ciudad" val={mem.signPlace} set={v=>update({signPlace:v})} />
+                                <Input label="Fecha" type="date" val={mem.signDate} set={v=>update({signDate:v})} />
+                            </div>
+                            <SignaturePad val={mem.sign} set={v=>update({sign:v})} />
+                        </div>}
+                    </div>
+
+                    <div className="p-4 border-t flex gap-3 bg-white sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                        <button onClick={prev} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-500">Atrás</button>
+                        <button onClick={next} disabled={(step===5 && MEDICAL_DATA.some(q => mem.history[q.id]?.si && !(mem.history[q.id]?.tags?.length || mem.history[q.id]?.txt))) || (step===1 && !mem.personal.sexo)} className="flex-[2] py-3 bg-sume-dark text-white rounded-xl font-bold shadow disabled:opacity-50 flex justify-center items-center gap-2">
+                            {step===8?'Finalizar Integrante':'Siguiente'} <Icons.ChevronRight size={18}/>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const Section = ({ title, children }) => <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm"><h3 className="text-sm font-bold border-b pb-2 mb-3 text-sume-dark">{title}</h3>{children}</div>;
+        const Input = ({ label, type="text", val, set, placeholder }) => <div className="w-full"><label className="text-[10px] font-bold text-gray-400 uppercase ml-1 mb-1 block">{label}</label><input type={type} className="w-full p-2.5 border border-gray-200 rounded-lg text-sm h-11 focus:border-sume-orange focus:outline-none transition-colors" value={val} onChange={e=>set(e.target.value)} placeholder={placeholder} /></div>;
+        const Select = ({ label, val, set, opts }) => <div className="w-full"><label className="text-[10px] font-bold text-gray-400 uppercase ml-1 mb-1 block">{label}</label><select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm h-11 bg-white focus:border-sume-orange focus:outline-none transition-colors" value={val} onChange={e=>set(e.target.value)}><option value="">Seleccionar</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select></div>;
+        const SignaturePad = ({ val, set }) => {
+            const r = useRef(); useEffect(() => { if(!r.current)return; const c=r.current.getContext('2d'); c.lineWidth=2; c.lineCap="round"; }, [val]);
+            const draw = e => { if(e.buttons!==1)return; const {left,top}=r.current.getBoundingClientRect(); const c=r.current.getContext('2d'); c.lineTo(e.clientX-left, e.clientY-top); c.stroke(); }
+            const start = e => { const {left,top}=r.current.getBoundingClientRect(); const c=r.current.getContext('2d'); c.beginPath(); c.moveTo(e.clientX-left, e.clientY-top); }
+            return <div className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 h-48 relative overflow-hidden">{!val?<canvas ref={r} width={400} height={200} className="w-full h-full touch-none cursor-crosshair" onMouseDown={start} onMouseMove={draw} onTouchStart={e=>{e.preventDefault();start(e.touches[0])}} onTouchMove={e=>{e.preventDefault();draw(e.touches[0])}} onMouseUp={()=>set(r.current.toDataURL())} onTouchEnd={()=>set(r.current.toDataURL())}/>:<div className="w-full h-full flex flex-col items-center justify-center bg-white"><img src={val} className="h-32 object-contain"/><button onClick={()=>set(null)} className="text-red-500 font-bold text-xs mt-2 underline">Borrar</button></div>}{!val&&<span className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 font-bold text-sm">Firmar Aquí</span>}</div>;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
