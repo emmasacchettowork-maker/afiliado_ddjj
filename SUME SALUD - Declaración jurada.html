@@ -150,14 +150,18 @@
         };
 
         function App() {
-            const [state, setState] = useState(() => JSON.parse(localStorage.getItem('sumev15')) || { view: 'ONBOARDING', members: [], activeId: null, step: 1 });
+            // Updated version key to clear previous problematic state
+            const [state, setState] = useState(() => JSON.parse(localStorage.getItem('sumev16')) || { view: 'ONBOARDING', members: [], activeId: null, step: 1 });
             const [pdfLoading, setPdfLoading] = useState(false);
             const [deleteModal, setDeleteModal] = useState({ show: false, id: null });
             const [emailModal, setEmailModal] = useState(false);
 
-            useEffect(() => localStorage.setItem('sumev15', JSON.stringify(state)), [state]);
+            useEffect(() => localStorage.setItem('sumev16', JSON.stringify(state)), [state]);
 
-            const start = () => setState({ view: 'FLOW', members: [createMember(true)], activeId: Date.now(), step: 1 });
+            const start = () => {
+                const newMember = createMember(true);
+                setState({ view: 'FLOW', members: [newMember], activeId: newMember.id, step: 1 });
+            };
             
             const addMember = () => {
                 const tit = state.members.find(m => m.role === 'Titular');
@@ -375,7 +379,7 @@
                     <div className="w-full max-w-md bg-white shadow-xl min-h-screen flex flex-col relative">
                         <header className="p-4 border-b sticky top-0 z-30 bg-white flex justify-between items-center">
                             <img src="https://sumesalud.com.ar/wp-content/uploads/2024/09/recta.png" className="h-8" alt="Sume Salud" />
-                            <button onClick={()=>confirm('¿Resetear todo?') && (localStorage.removeItem('sumev15') || location.reload())} className="text-gray-300"><Icons.Refresh/></button>
+                            <button onClick={()=>confirm('¿Resetear todo?') && (localStorage.removeItem('sumev16') || location.reload())} className="text-gray-300"><Icons.Refresh/></button>
                         </header>
                         <div className="flex-1 overflow-y-auto pb-24">
                             {state.view === 'ONBOARDING' && <Onboarding start={start} />}
